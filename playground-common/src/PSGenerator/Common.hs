@@ -32,12 +32,14 @@ import           Ledger.Interval                           (Extended, Interval, 
 import           Ledger.Scripts                            (ScriptError)
 import           Ledger.Slot                               (Slot)
 import           Ledger.Time                               (POSIXTime)
+import           Ledger.TimeSlot                           (SlotConfig)
 import           Ledger.Typed.Tx                           (ConnectionError, WrongOutTypeError)
-import           Ledger.Value                              (CurrencySymbol, TokenName, Value)
+import           Ledger.Value                              (AssetClass, CurrencySymbol, TokenName, Value)
 import           Playground.Types                          (ContractCall, FunctionSchema, KnownCurrency)
 import           Plutus.Contract.Checkpoint                (CheckpointError)
-import           Plutus.Contract.Effects                   (ActiveEndpoint, BalanceTxResponse, PABReq, PABResp,
-                                                            UtxoAtAddress, WriteBalancedTxResponse)
+import           Plutus.Contract.Effects                   (ActiveEndpoint, BalanceTxResponse, Depth, PABReq, PABResp,
+                                                            TxStatus, TxValidity, UtxoAtAddress,
+                                                            WriteBalancedTxResponse)
 import           Plutus.Contract.Resumable                 (IterationID, Request, RequestID, Response)
 import           Plutus.Trace.Emulator.Types               (ContractInstanceLog, ContractInstanceMsg,
                                                             ContractInstanceTag, EmulatorRuntimeError, UserThreadMsg)
@@ -260,6 +262,7 @@ ledgerTypes =
     [ (equal <*> (genericShow <*> mkSumType)) (Proxy @Slot)
     , (equal <*> (genericShow <*> mkSumType)) (Proxy @POSIXTime)
     , (equal <*> (genericShow <*> mkSumType)) (Proxy @Ada)
+    , (equal <*> (genericShow <*> mkSumType)) (Proxy @SlotConfig)
     , (equal <*> (genericShow <*> mkSumType)) (Proxy @Tx)
     , (order <*> (genericShow <*> mkSumType)) (Proxy @TxId)
     , (equal <*> (genericShow <*> mkSumType)) (Proxy @TxIn)
@@ -278,6 +281,7 @@ ledgerTypes =
     , (functor <*> (equal <*> (genericShow <*> mkSumType)))
           (Proxy @(UpperBound A))
     , (genericShow <*> (order <*> mkSumType)) (Proxy @CurrencySymbol)
+    , (genericShow <*> (order <*> mkSumType)) (Proxy @AssetClass)
     , (genericShow <*> (order <*> mkSumType)) (Proxy @MintingPolicy)
     , (genericShow <*> (order <*> mkSumType)) (Proxy @RedeemerPtr)
     , (genericShow <*> (order <*> mkSumType)) (Proxy @ScriptTag)
@@ -334,6 +338,9 @@ ledgerTypes =
     , (equal <*> (genericShow <*> mkSumType)) (Proxy @UtxoAtAddress)
     , (equal <*> (genericShow <*> mkSumType)) (Proxy @ActiveEndpoint)
     , (equal <*> (genericShow <*> mkSumType)) (Proxy @UnbalancedTx)
+    , (equal <*> (genericShow <*> mkSumType)) (Proxy @TxValidity)
+    , (equal <*> (genericShow <*> mkSumType)) (Proxy @TxStatus)
+    , (equal <*> (genericShow <*> mkSumType)) (Proxy @Depth)
     ]
 
 walletTypes :: [SumType 'Haskell]

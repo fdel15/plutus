@@ -6,10 +6,10 @@ module Dashboard.View
 import Prelude hiding (div)
 import Contract.State (isContractClosed)
 import Contract.Types (State) as Contract
-import Contract.View (actionConfirmationCard, contractCard, contractScreen)
+import Contract.View (actionConfirmationCard, contractPreviewCard, contractScreen)
 import Css as Css
 import Dashboard.Lenses (_card, _cardOpen, _contractFilter, _contract, _menuOpen, _selectedContract, _selectedContractFollowerAppId, _templateState, _walletDetails, _walletDataState)
-import Dashboard.Types (Action(..), Card(..), ContractFilter(..), State)
+import Dashboard.Types (Action(..), Card(..), ContractFilter(..), State, Input)
 import Data.Lens (preview, view, (^.))
 import Data.Map (Map, filter, isEmpty, toUnfoldable)
 import Data.Maybe (Maybe(..), isJust)
@@ -20,7 +20,7 @@ import Data.UUID (toString) as UUID
 import Effect.Aff.Class (class MonadAff)
 import Halogen (ComponentHTML)
 import Halogen.Css (applyWhen, classNames)
-import Halogen.Extra (renderSubmodule)
+import Halogen.Extra (mapComponentAction, renderSubmodule)
 import Halogen.HTML (HTML, a, button, div, div_, footer, h2, h3, h4, header, img, input, label, main, nav, p, span, span_, text)
 import Halogen.HTML.Events (onClick)
 import Halogen.HTML.Events.Extra (onClick_)
@@ -42,10 +42,12 @@ import WalletData.State (adaToken, getAda)
 import WalletData.Types (WalletDetails)
 import WalletData.View (walletDataCard)
 
-dashboardScreen :: forall m. MonadAff m => Slot -> State -> ComponentHTML Action ChildSlots m
-dashboardScreen currentSlot state =
+dashboardScreen :: forall m. MonadAff m => Input -> State -> ComponentHTML Action ChildSlots m
+dashboardScreen { currentSlot, tzOffset } state =
   let
     walletNickname = state ^. (_walletDetails <<< _walletNickname)
+
+    walletDetails = state ^. _walletDetails
 
     menuOpen = state ^. _menuOpen
 
@@ -71,7 +73,13 @@ dashboardScreen currentSlot state =
               [ dashboardBreadcrumb selectedContract
               , main
                   [ classNames [ "relative" ] ] case selectedContractFollowerAppId of
-                  Just followerAppId -> [ renderSubmodule _selectedContract (ContractAction followerAppId) (contractScreen currentSlot) state ]
+                  Just followerAppId ->
+                    [ renderSubmodule
+                        _selectedContract
+                        (ContractAction followerAppId)
+                        (contractScreen { currentSlot, tzOffset, walletDetails, followerAppId })
+                        state
+                    ]
                   _ -> [ contractsScreen currentSlot state ]
               ]
           ]
@@ -210,7 +218,7 @@ dashboardBreadcrumb mSelectedContractState =
           ]
         <> case mSelectedContractState of
             Just { nickname } ->
-              [ span [ classNames [ "font-semibold" ] ] [ text ">" ] -- FIXME: change > for an Icon
+              [ icon_ Icon.Next
               , tooltip "Go to dashboard" (RefId "goToDashboard") Bottom
               , span_ [ text if nickname == mempty then "My new contract" else nickname ]
               ]
@@ -234,7 +242,7 @@ dashboardFooter =
 
 dashboardLinks :: forall p. Warn (Text "We need to add the dashboard links.") => Array (HTML p Action)
 dashboardLinks =
-  -- FIXME: Add link to Docs
+  -- FIXME: SCP-2589 Add link to Docs
   [ link "Docs" ""
   , link "marlowe-finance.io" "https://marlowe-finance.io"
   , link "play.marlowe-finance.io" "https://play.marlowe-finance.io"
@@ -335,7 +343,7 @@ contractNavigation contractFilter =
           ]
       ]
 
-contractCards :: forall p. Slot -> State -> HTML p Action
+contractCards :: forall m. MonadAff m => Slot -> State -> ComponentHTML Action ChildSlots m
 contractCards currentSlot { contractFilter: Running, contracts } =
   let
     runningContracts = filter (not isContractClosed) contracts
@@ -379,7 +387,7 @@ noContractsMessage contractFilter =
               [ text "You have no completed contracts." ]
           ]
 
-contractGrid :: forall p. Slot -> ContractFilter -> Map PlutusAppId Contract.State -> HTML p Action
+contractGrid :: forall m. MonadAff m => Slot -> ContractFilter -> Map PlutusAppId Contract.State -> ComponentHTML Action ChildSlots m
 contractGrid currentSlot contractFilter contracts =
   div
     [ classNames [ "grid", "pt-4", "pb-20", "lg:pb-4", "gap-8", "auto-rows-min", "mx-auto", "max-w-contracts-grid-sm", "md:max-w-none", "md:w-contracts-grid-md", "md:grid-cols-2", "lg:w-contracts-grid-lg", "lg:grid-cols-3" ] ]
@@ -397,7 +405,7 @@ contractGrid currentSlot contractFilter contracts =
       , span_ [ text "New smart contract from template" ]
       ]
 
-  dashboardContractCard (followerAppId /\ contractState) = ContractAction followerAppId <$> contractCard currentSlot contractState
+  dashboardContractCard (followerAppId /\ contractState) = mapComponentAction (ContractAction followerAppId) $ contractPreviewCard currentSlot contractState
 
 -- TODO: waiting new design for this from Russ
 currentWalletCard :: forall p. WalletDetails -> HTML p Action

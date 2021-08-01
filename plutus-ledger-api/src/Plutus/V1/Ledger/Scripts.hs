@@ -14,6 +14,7 @@
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE TypeOperators       #-}
 {-# LANGUAGE ViewPatterns        #-}
+
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fno-specialise #-}
 
@@ -46,10 +47,6 @@ module Plutus.V1.Ledger.Scripts(
     RedeemerHash(..),
     ValidatorHash(..),
     MintingPolicyHash (..),
-    datumHash,
-    redeemerHash,
-    validatorHash,
-    mintingPolicyHash,
     -- * Example scripts
     unitRedeemer,
     unitDatum,
@@ -57,7 +54,6 @@ module Plutus.V1.Ledger.Scripts(
 
 import qualified Prelude                                  as Haskell
 
-import qualified Cardano.Crypto.Hash                      as Crypto
 import           Codec.CBOR.Decoding                      (decodeBytes)
 import           Codec.Serialise                          (Serialise, decode, encode, serialise)
 import           Control.DeepSeq                          (NFData)
@@ -80,7 +76,8 @@ import qualified PlutusCore.Data                          as PLC
 import qualified PlutusCore.DeBruijn                      as PLC
 import qualified PlutusCore.Evaluation.Machine.ExBudget   as PLC
 import qualified PlutusCore.MkPlc                         as PLC
-import           PlutusTx                                 (CompiledCode, IsData (..), getPlc, makeLift)
+import           PlutusTx                                 (CompiledCode, FromData (..), ToData (..),
+                                                           UnsafeFromData (..), getPlc, makeLift)
 import           PlutusTx.Builtins                        as Builtins
 import           PlutusTx.Builtins.Internal               as BI
 import           PlutusTx.Evaluation                      (ErrorWithCause (..), EvaluationError (..), evaluateCekTrace)
@@ -244,7 +241,7 @@ instance BA.ByteArrayAccess Validator where
 -- | 'Datum' is a wrapper around 'Data' values which are used as data in transaction outputs.
 newtype Datum = Datum { getDatum :: BuiltinData  }
   deriving stock (Generic, Haskell.Show)
-  deriving newtype (Haskell.Eq, Haskell.Ord, Eq, IsData)
+  deriving newtype (Haskell.Eq, Haskell.Ord, Eq, ToData, FromData, UnsafeFromData)
   deriving (ToJSON, FromJSON, Serialise, NFData) via PLC.Data
   deriving Pretty via PLC.Data
 
@@ -287,7 +284,7 @@ newtype ValidatorHash =
     ValidatorHash Builtins.ByteString
     deriving (IsString, Haskell.Show, Serialise, Pretty) via LedgerBytes
     deriving stock (Generic)
-    deriving newtype (Haskell.Eq, Haskell.Ord, Eq, Ord, Hashable, IsData)
+    deriving newtype (Haskell.Eq, Haskell.Ord, Eq, Ord, Hashable, ToData, FromData, UnsafeFromData)
     deriving anyclass (FromJSON, ToJSON, ToJSONKey, FromJSONKey, NFData)
 
 -- | Script runtime representation of a @Digest SHA256@.
@@ -295,50 +292,24 @@ newtype DatumHash =
     DatumHash Builtins.ByteString
     deriving (IsString, Haskell.Show, Serialise, Pretty) via LedgerBytes
     deriving stock (Generic)
-    deriving newtype (Haskell.Eq, Haskell.Ord, Eq, Ord, Hashable, IsData, NFData)
-    deriving anyclass (FromJSON, ToJSON, ToJSONKey, FromJSONKey)
+    deriving newtype (Haskell.Eq, Haskell.Ord, Eq, Ord, Hashable, ToData, FromData, UnsafeFromData)
+    deriving anyclass (FromJSON, ToJSON, ToJSONKey, FromJSONKey, NFData)
 
 -- | Script runtime representation of a @Digest SHA256@.
 newtype RedeemerHash =
     RedeemerHash Builtins.ByteString
     deriving (IsString, Haskell.Show, Serialise, Pretty) via LedgerBytes
     deriving stock (Generic)
-    deriving newtype (Haskell.Eq, Haskell.Ord, Eq, Ord, Hashable, IsData)
-    deriving anyclass (FromJSON, ToJSON, ToJSONKey, FromJSONKey)
+    deriving newtype (Haskell.Eq, Haskell.Ord, Eq, Ord, Hashable, ToData, FromData, UnsafeFromData)
+    deriving anyclass (FromJSON, ToJSON, ToJSONKey, FromJSONKey, NFData)
 
 -- | Script runtime representation of a @Digest SHA256@.
 newtype MintingPolicyHash =
     MintingPolicyHash Builtins.ByteString
     deriving (IsString, Haskell.Show, Serialise, Pretty) via LedgerBytes
     deriving stock (Generic)
-    deriving newtype (Haskell.Eq, Haskell.Ord, Eq, Ord, Hashable, IsData)
+    deriving newtype (Haskell.Eq, Haskell.Ord, Eq, Ord, Hashable, ToData, FromData, UnsafeFromData)
     deriving anyclass (FromJSON, ToJSON, ToJSONKey, FromJSONKey)
-
-datumHash :: Datum -> DatumHash
-datumHash = DatumHash . Builtins.sha2_256 . BA.convert
-
-redeemerHash :: Redeemer -> RedeemerHash
-redeemerHash = RedeemerHash . Builtins.sha2_256 . BA.convert
-
-validatorHash :: Validator -> ValidatorHash
-validatorHash vl =
-    ValidatorHash
-        $ Crypto.hashToBytes
-        $ Crypto.hashWith @Crypto.Blake2b_224 id
-        $ Crypto.hashToBytes
-        $ Crypto.hashWith @Crypto.Blake2b_224 id
-        $ BSL.toStrict
-        $ serialise vl
-
-mintingPolicyHash :: MintingPolicy -> MintingPolicyHash
-mintingPolicyHash vl =
-    MintingPolicyHash
-        $ Crypto.hashToBytes
-        $ Crypto.hashWith @Crypto.Blake2b_224 id
-        $ Crypto.hashToBytes
-        $ Crypto.hashWith @Crypto.Blake2b_224 id
-        $ BSL.toStrict
-        $ serialise vl
 
 -- | Information about the state of the blockchain and about the transaction
 --   that is currently being validated, represented as a value in 'Data'.
